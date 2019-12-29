@@ -129,4 +129,5 @@ dmypy.json
 .pyre/
 
 
+.idea/
 01-AutoEncoder/mnist/

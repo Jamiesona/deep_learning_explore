@@ -66,5 +66,4 @@ class Translator(nn.Module):
         self.target_lang = target_lang
         self.input_embedding = nn.Embedding(input_lang.count, hidden_size)
         self.target_embedding = nn.Embedding(target_lang.count, hidden_size)
-        self.trsfm = nn.Transformer(hidden_size, 3, 3)
         self.loss = nn.MSELoss()

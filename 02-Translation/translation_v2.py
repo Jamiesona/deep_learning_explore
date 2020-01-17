@@ -62,8 +62,38 @@ class Translator(nn.Module):
     """使用transformer实现翻译器."""
 
     def __init__(self, input_lang, target_lang, hidden_size):
+        super(Translator, self).__init__()
         self.input_lang = input_lang
         self.target_lang = target_lang
         self.input_embedding = nn.Embedding(input_lang.count, hidden_size)
         self.target_embedding = nn.Embedding(target_lang.count, hidden_size)
+        self.trsfm = nn.Transformer(hidden_size, 2, 2, 2, 256)
         self.loss = nn.MSELoss()
+        self.opt = optim.SGD(self.parameters(), lr=0.01)
+
+    def train_with_one_sentence(self, s, t):
+        self.opt.zero_grad()
+        s = self.input_lang.to_tensor(s)
+        s = self.input_embedding(s)
+        s = s.unsqueeze(1)
+
+        t = self.target_lang.to_tensor(t)
+        t = self.target_embedding(t)
+        t = t.unsqueeze(1)
+
+        out = self.trsfm(s, t)
+        lv = self.loss(out, t)
+        lv.backward()
+        self.opt.step()
+
+
+english = English()
+chinese = Chinese()
+
+english.add_sentence(s1)
+chinese.add_sentence(t1)
+
+tl = Translator(english, chinese, 128)
+
+
+tl.train_with_one_sentence(s1, t1)

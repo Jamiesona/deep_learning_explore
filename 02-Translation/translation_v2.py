@@ -89,6 +89,8 @@ class Translator(nn.Module):
 
 english = English()
 chinese = Chinese()
+s1 = "hello world"
+t1 = "你好世界"
 
 english.add_sentence(s1)
 chinese.add_sentence(t1)

@@ -151,15 +151,28 @@ class Translator(nn.Module):
 english = English()
 chinese = Chinese()
 
-english.add_sentence("hello world")
-chinese.add_sentence("你好世界")
+with open("./02-Translation/english.txt", "r") as fin:
+    english_content = fin.readlines()
+
+with open("./02-Translation/chinese.txt", "r") as fin:
+    chinese_content = fin.readlines()
+
+for i in range(len(english_content)):
+    english.add_sentence(english_content[i])
+    chinese.add_sentence(chinese_content[i])
 
 ts = Translator(512, english, chinese)
 lvs = []
 for i in range(100):
-    lv = ts.train_with_one_setence_pair("hello world", "你好世界")
-    lvs.append(lv)
+    lv = 0
+    for j in range(len(english_content)):
+        lv += ts.train_with_one_setence_pair(
+            english_content[j], chinese_content[j])
+    lvs.append(lv/len(english_content))
 
 plt.plot(lvs)
-print(ts("hello world"))
 plt.show()
+
+for i in range(len(english_content)):
+    print("English sentence: " +
+          english_content[i] + " ===>: " + ts(english_content[i]))

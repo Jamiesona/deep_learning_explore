@@ -91,9 +91,9 @@ class Translator(nn.Module):
         pe = torch.zeros(max_len, d_model)
         pos = np.arange(0, max_len).reshape(max_len, 1)
         pe[:, 0::2] = torch.sin(torch.tensor(
-            pos/(10000.0 ** (np.arange(0, d_model, 2)/d_model))))
+            pos / (10000.0 ** (np.arange(0, d_model, 2) / d_model))))
         pe[:, 1::2] = torch.cos(torch.tensor(
-            pos/(10000.0 ** (np.arange(0, d_model, 2)/d_model))))
+            pos / (10000.0 ** (np.arange(0, d_model, 2) / d_model))))
         return pe
 
     def format_sentence(self, sentence, is_input=True):
@@ -109,10 +109,16 @@ class Translator(nn.Module):
         return (em + pe).unsqueeze(1)
 
     def train_with_one_setence_pair(self, src_sentence, tgt_sentence):
+        """
+        使用一对句子进行训练.
+        :param src_sentence: 源语言句子
+        :param tgt_sentence: 目标语言句子
+        :return: 损失函数值
+        """
         self.optim_fn.zero_grad()
         tgt = self.output_lang.to_tensor(tgt_sentence)
-        T = tgt.size(0)-1
-        mask = np.triu(np.ones((T, T)), k=0)
+        T = tgt.size(0) - 1
+        mask = np.triu(np.ones((T, T)), k=1)
         mask[mask == 1] = -1e9
         tgt_mask = torch.from_numpy(mask)
         src_sentence = self.format_sentence(src_sentence)
@@ -168,7 +174,7 @@ for i in range(100):
     for j in range(len(english_content)):
         lv += ts.train_with_one_setence_pair(
             english_content[j], chinese_content[j])
-    lvs.append(lv/len(english_content))
+    lvs.append(lv / len(english_content))
 
 plt.plot(lvs)
 plt.show()

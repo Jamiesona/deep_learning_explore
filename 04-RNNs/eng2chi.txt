@@ -1,2 +1,6 @@
 hello world!	你好世界
 this is your choice.	这是你的选择
+where are you from?	你来自哪里
+can you do me a favor?	你能帮帮我吗
+i come to the end of this world.	我来到了世界末日
+i need a new computer.	我需要一台新电脑

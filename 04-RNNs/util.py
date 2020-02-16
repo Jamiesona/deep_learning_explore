@@ -1,6 +1,8 @@
 import re
 from collections import Counter
 import torch
+from torch.utils.data.dataset import TensorDataset
+from torch.utils.data.dataloader import DataLoader
 
 
 class Vocab:
@@ -14,10 +16,13 @@ class Vocab:
         self.word2idx = {}
         for idx, word in enumerate(self.idx2word):
             self.word2idx[word] = idx
+    
+    def __len__(self):
+        return len(self.idx2word)
 
     def __getitem__(self, index):
         if not isinstance(index, (list, tuple)):
-            return self.word2idx[index]
+            return [self.word2idx.get(index, self.word2idx['<unk>'])]
         else:
             res = []
             for idx in index:
@@ -42,16 +47,27 @@ def get_list_from_file(file_name):
     return src_list, tgt_list
 
 
-def build_array(vocab, lines, max_len):
+def build_array(vocab, lines, max_len, is_target=False):
     res = []
     for line in lines:
+        if is_target:
+            line = ['<bos>'] + line + ['<eos>']
         if len(line) < max_len:
             line += "<pad>" * (max_len - len(line))
         res.append(vocab[line[0: max_len]])
     return torch.tensor(res, dtype=torch.long)
 
 
-s, t = get_list_from_file("04-RNNs/eng2chi.txt")
-vocab = Vocab(s)
+src_list, tgt_list = get_list_from_file("04-RNNs/eng2chi.txt")
+vocab_eng = Vocab(src_list)
+vocab_chi = Vocab(tgt_list)
+max_len = 10
+eng, chi = build_array(vocab_eng, src_list, max_len), build_array(vocab_chi, tgt_list, max_len, True)
 
-print(build_array(vocab, s, 10))
+
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+eng, chi = eng.to(DEVICE), chi.to(DEVICE)
+
+train_data = TensorDataset(eng, chi)
+train_dl = DataLoader(train_data, batch_size=1, shuffle=True)
+

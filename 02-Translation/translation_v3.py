@@ -174,3 +174,5 @@ for i in range(120):
 
 plt.plot(range(0, 120, 5), lvs[0::5], "k-->")
 plt.show()
+
+print(translator(x[0]))

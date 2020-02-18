@@ -37,14 +37,24 @@ class MyDecoder(nn.Module):
     def __init__(self, input_size, hidden_size, vocab_size):
         super().__init__()
         self.embedding = nn.Embedding(vocab_size, input_size)
-        self.rnn = nn.GRU(input_size, hidden_size)
+        self.rnn = nn.GRU(input_size + hidden_size, hidden_size)
         self.dense = nn.Linear(hidden_size, vocab_size)
 
-    def forward(self, x, h0):
+    def forward(self, x, hidden_state, encoder_outs):
         x = self.embedding(x)
-        outs, hn = self.rnn(x, h0)
-        outs = self.dense(outs)
-        return outs, hn
+        outs = None
+        weights = torch.empty(x.shape[0], encoder_outs.shape[0]).to(config["device"])
+        for idx, xx in enumerate(x):
+            attention, weight = dot_attention(hidden_state, encoder_outs, encoder_outs)
+            xx = torch.cat((xx.unsqueeze(0), attention), dim=2)
+            out, hidden_state = self.rnn(xx, hidden_state)
+            out = self.dense(out)
+            weights[idx] = weight.squeeze()
+            if outs is None:
+                outs = out
+            else:
+                outs = torch.cat((outs, out), dim=0)
+        return outs, hidden_state, weights
 
 
 class MyEncoderDecoder(nn.Module):
@@ -54,9 +64,21 @@ class MyEncoderDecoder(nn.Module):
         self.dec = decoder
 
     def forward(self, seq0, seq1):
-        _, hn = self.enc(seq0)
-        outs, _ = self.dec(seq1, hn)
+        encoder_outs, hn = self.enc(seq0)
+        outs, _, _ = self.dec(seq1, hn, encoder_outs)
         return outs
+
+
+def dot_attention(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor):
+    """
+    :param q: (1, 1, hidden_size)
+    :param k: (N, 1, hidden_size)
+    :param v: (N, 1, hidden_size)
+    :return:
+    """
+    weights = torch.softmax((q * k).sum(2), dim=0)  # (N, 1)
+    weighted_value = (weights[:, :, None] * v).sum(0, keepdim=True)
+    return weighted_value, weights
 
 
 class Vocab:
@@ -145,21 +167,33 @@ def train_model(model, loss_fn, optim_fn, x, y, epochs=10):
 def predict(model: MyEncoderDecoder, x, max_len: int):
     model.train(False)
     x = torch.tensor(vocab1[x], device=config["device"]).unsqueeze(1)
-    _, hn = model.enc(x)
+    encoder_outs, hn = model.enc(x)
     dec_x = torch.tensor(vocab2[vocab2.bos], dtype=torch.long, device=config["device"]).unsqueeze(1)
     res = []
+    weights = torch.empty(max_len, len(x)).to(config["device"])
     for idx in range(max_len):
-        outs, hn = model.dec(dec_x, hn)
+        outs, hn, weight = model.dec(dec_x, hn, encoder_outs)
+        weights[idx] = weight.squeeze()
         res.append(vocab2.idx2word[torch.argmax(outs, 2).item()])
         dec_x = outs.argmax(2)
         if res[-1] == vocab2.eos:
             break
-    return "".join(res)
+    return res, weights[0:idx + 1]
 
 
 losses = train_model(enc_dec, loss_fn, optim_fn, x, y, 20)
 plt.plot(losses, 'r-o')
 plt.show()
 
-print(src_list[0])
-print(predict(enc_dec, src_list[0], 10))
+
+def translate_show(line):
+    print(line)
+    res, weight = predict(enc_dec, line, 10)
+    print(res)
+    plt.imshow(weight.cpu().detach().numpy())
+    plt.xticks(range(len(line)), line, rotation=90)
+    plt.yticks(range(len(res)), res, rotation=90)
+    plt.show()
+    return weight.cpu().detach()
+
+translate_show(src_list[2])

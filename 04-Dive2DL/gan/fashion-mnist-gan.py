@@ -1,13 +1,13 @@
 import torch
 import torch.nn as nn
-from torchvision.datasets import FashionMNIST
+from torchvision.datasets import FashionMNIST, MNIST
 from torchvision.transforms import ToTensor
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 
 def load_data(root='./', batch_size=20, percent=0.2):
     ''''加载数据.'''
-    data = FashionMNIST(root=root, train=True, transform=ToTensor, download=True)
+    data = MNIST(root=root, train=True, transform=ToTensor, download=True)
     data.data = data.data / 255.0
     n = int(len(data.train_data) * percent)
     # 不使用全部数据参加训练
@@ -31,7 +31,8 @@ class Net_D(nn.Module):
             nn.Flatten(), #(N, 12*7*7)
             nn.Linear(12*7*7, 12),
             nn.Dropout(0.2),
-            nn.Linear(12, 1)
+            nn.Linear(12, 1),
+            nn.Sigmoid()
         )
     
     def forward(self, x):
@@ -65,11 +66,10 @@ class Reshape(nn.Module):
 def update_D(net_d, net_g, x, noise, trainer_d, loss, device):
     batch_size = x.shape[0]
     ones = torch.ones(batch_size, device=device)
-    zeros = torch.zeros(batch_size, device=device)
+    zeros = torch.zeros(noise.shape[0], device=device)
     fake_x = net_g(noise)
-    ones_hat = net_d(x)
-    zeros_hat = net_d(fake_x)
-    print(zeros_hat.shape, ones_hat.shape)
+    ones_hat = net_d(x).squeeze()
+    zeros_hat = net_d(fake_x).squeeze()
     d_loss = 0.5 * (loss(ones_hat, ones) + loss(zeros_hat, zeros))
     d_loss.backward()
     trainer_d.step()
@@ -78,8 +78,8 @@ def update_D(net_d, net_g, x, noise, trainer_d, loss, device):
 
 def update_G(net_g, net_d, noise, trainer_g, loss, device):
     batch_size = noise.shape[0]
-    ones = torch.zeros(batch_size, 1, device=device)
-    fake_y = net_d(net_g(noise))
+    ones = torch.zeros(batch_size, device=device)
+    fake_y = net_d(net_g(noise)).squeeze()
     g_loss = loss(fake_y, ones)
     trainer_g.step()
     trainer_g.zero_grad()
@@ -90,8 +90,8 @@ def train_model(net_d, net_g, data_iter, device, epochs=10):
     net_d.to(device)
     net_g.to(device)
 
-    trainer_d = torch.optim.Adam(net_d.parameters(), lr=0.05)
-    trainer_g = torch.optim.Adam(net_g.parameters(), lr=0.005)
+    trainer_d = torch.optim.Adam(net_d.parameters(), lr=0.1)
+    trainer_g = torch.optim.Adam(net_g.parameters(), lr=0.001)
     loss = nn.BCELoss()
 
     d_losses = torch.zeros(epochs)
@@ -101,7 +101,7 @@ def train_model(net_d, net_g, data_iter, device, epochs=10):
     for epoch in range(epochs):
         for x in data_iter:
             x = x.to(device)
-            noise = torch.randn(x.shape[0], 64, device=device)
+            noise = torch.randn(x.shape[0]//2, 64, device=device)
             d_loss = update_D(net_d, net_g, x, noise, trainer_d, loss, device)
             g_loss = update_G(net_g, net_d, noise, trainer_g, loss, device)
             d_losses[epoch] += d_loss
@@ -109,15 +109,19 @@ def train_model(net_d, net_g, data_iter, device, epochs=10):
 
     return d_losses/n, g_losses/n
 
-def evaluate_g(net_g, noise):
+def evaluate_g(net_d, net_g, noise):
+    net_d.eval()
     net_g.eval()
-    imgs = net_g(noise).cpu().detach().squeeze()
+    fake_x = net_g(noise)
+    y_hat = net_d(fake_x)
+    imgs = fake_x.cpu().detach().squeeze()
 
     batch_size = imgs.shape[0]
     for idx in range(batch_size):
         plt.subplot(1, batch_size, idx+1)
         plt.imshow(imgs[idx])
-
+        plt.axis('off')
+    print(y_hat)
     plt.show()
 
 if __name__=='__main__':
@@ -129,6 +133,13 @@ if __name__=='__main__':
 
     plt.plot(range(epochs), d_losses, 'r--', label='d_losses')
     plt.plot(range(epochs), g_losses, 'g--', label='g_losses')
+    plt.legend()
     plt.show()
 
     noise = torch.randn(5, 64, device=device)
+    evaluate_g(net_d, net_g, noise)
+
+    for x in data_iter:
+        y = net_d(x.to(device)).cpu().detach()
+        print(y)
+        break

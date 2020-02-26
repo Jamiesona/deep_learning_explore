@@ -133,3 +133,4 @@ dmypy.json
 01-AutoEncoder/mnist/
 
 .vscode/
+FashionMNIST/
